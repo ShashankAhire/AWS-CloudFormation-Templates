@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Name of the S3 bucket
+
+Resources:
+  VPC1:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC1
+
+  VPC2:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC2
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: InternetGatewayVPC1
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC1
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetVPC1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnetVPC1
+
+  PrivateSubnetVPC1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.0.2.0/24
+      Tags:
+        - Key: Name
+          Value: PrivateSubnetVPC1
+
+  PublicSubnetVPC2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 192.168.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnetVPC2
+
+  PrivateSubnetVPC2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 192.168.2.0/24
+      Tags:
+        - Key: Name
+          Value: PrivateSubnetVPC2
+
+  RouteTablePublicVPC1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: PublicRouteTableVPC1
+
+  RoutePublicVPC1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePublicVPC1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociationPublicVPC1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetVPC1
+      RouteTableId: !Ref RouteTablePublicVPC1
+
+  RouteTablePrivateVPC1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTableVPC1
+
+  SubnetRouteTableAssociationPrivateVPC1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetVPC1
+      RouteTableId: !Ref RouteTablePrivateVPC1
+
+  RouteTablePrivateVPC2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTableVPC2
+
+  RoutePrivateVPC2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateVPC2
+      DestinationCidrBlock: 10.0.0.0/16
+      VpcPeeringConnectionId: !Ref VPCPeering
+
+  SubnetRouteTableAssociationPrivateVPC2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetVPC2
+      RouteTableId: !Ref RouteTablePrivateVPC2
+
+  S3VPCEndpointVPC2:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC2
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds:
+        - !Ref RouteTablePrivateVPC2
+      VpcEndpointType: Gateway
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIP.AllocationId
+      SubnetId: !Ref PublicSubnetVPC1
+      Tags:
+        - Key: Name
+          Value: NatGatewayVPC1
+
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+
+  VPCPeering:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref VPC1
+      PeerVpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: VPCPeeringVPC1VPC2
